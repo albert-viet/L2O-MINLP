@@ -8,7 +8,7 @@ from torch import nn
 import neuromancer as nm
 
 class gradientProjection(nn.Module):
-    def __init__(self, pre_components, post_components, loss_fn, target_key, max_iters=1000, step_size=0.01, decay=1.0):
+    def __init__(self, pre_components, post_components, loss_fn, target_key, max_iters=1000, step_size=0.01, decay=1.0, record_history=False, normalize_by_group=False):
         super().__init__()
         self.pre_components = pre_components
         self.post_components = post_components
@@ -17,10 +17,20 @@ class gradientProjection(nn.Module):
         self.max_iters = max_iters
         self.step_size = step_size
         self.decay = decay
+        self.record_history = record_history
+        self.history = []
+        # if True, split violation into an inequality group (inner+outer+linear)
+        # and an equality group, normalize each group's gradient to unit norm
+        # before summing - requires loss_fn.cal_violation_breakdown(...) (see
+        # src/problem/neuromancer/rosenbrock_eq.py::penaltyLoss_eq)
+        self.normalize_by_group = normalize_by_group
 
     def forward(self, input_dict):
         # initialize decay multiplier
         d = 1.0
+        # reset history for this call
+        if self.record_history:
+            self.history = []
         # get target variables
         for comp in self.pre_components:
             input_dict.update(comp(input_dict))
@@ -30,13 +40,33 @@ class gradientProjection(nn.Module):
             # forward pass in components
             for comp in self.post_components:
                 input_dict.update(comp(input_dict))
-            # get corresponding violation
-            viol = self.loss_fn.cal_constr_viol(input_dict)
-            # check stopping condition
-            if viol.max() < 1e-6:
-                break
-            # get gradients
-            grad = torch.autograd.grad(viol.sum(), x)[0]
+            if self.normalize_by_group:
+                # split into inequality vs. equality groups
+                bd = self.loss_fn.cal_violation_breakdown(input_dict)
+                viol_ineq = bd["inner"] + bd["outer"] + bd["linear"]
+                viol_eq = bd["equality"]
+                viol = viol_ineq + viol_eq
+                if self.record_history:
+                    self.history.append(viol.max().item())
+                if viol.max() < 1e-6:
+                    break
+                # gradient per group, each normalized to unit norm
+                grad_ineq = torch.autograd.grad(viol_ineq.sum(), x, retain_graph=True)[0]
+                grad_eq = torch.autograd.grad(viol_eq.sum(), x)[0]
+                grad_ineq = grad_ineq / (grad_ineq.norm() + 1e-8)
+                grad_eq = grad_eq / (grad_eq.norm() + 1e-8)
+                grad = grad_ineq + grad_eq
+            else:
+                # get corresponding violation
+                viol = self.loss_fn.cal_constr_viol(input_dict)
+                # record convergence history if requested
+                if self.record_history:
+                    self.history.append(viol.max().item())
+                # check stopping condition
+                if viol.max() < 1e-6:
+                    break
+                # get gradients
+                grad = torch.autograd.grad(viol.sum(), x)[0]
             # update
             x = x - d * self.step_size * grad
             d = self.decay * d
