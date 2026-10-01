@@ -1,18 +1,18 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+File này hướng dẫn Claude Code (claude.ai/code) khi làm việc với mã nguồn trong repository này.
 
-## Project
+## Dự án
 
-Official implementation of "Learning to Optimize for Mixed-Integer Nonlinear Programming" (arXiv:2410.11061). A Learning-to-Optimize (L2O) framework that trains neural networks to predict high-quality solutions to parametric MINLPs, using **integer correction layers** (to enforce integrality) and **integer feasibility projection** (a gradient-based post-processing step to reduce constraint violation).
+Cài đặt chính thức của bài báo "Learning to Optimize for Mixed-Integer Nonlinear Programming" (arXiv:2410.11061). Đây là một framework Learning-to-Optimize (L2O) huấn luyện mạng nơ-ron để dự đoán nghiệm chất lượng cao cho các bài toán MINLP có tham số, sử dụng **integer correction layers** (lớp hiệu chỉnh số nguyên, để đảm bảo tính nguyên) và **integer feasibility projection** (bước hậu xử lý dựa trên gradient để giảm vi phạm ràng buộc).
 
-## Environment setup
+## Thiết lập môi trường
 
-No `requirements.txt`/`pyproject.toml` is committed; dependencies are installed via `create_env.sh`, which assumes an HPC/module-based cluster (Compute Canada style: `module load`, `virtualenv`). Key dependencies: PyTorch, NeuroMANCER (`==1.5.2`, installed with `--no-deps`), Pyomo, Gurobi (`gurobipy`), SCIP (via Pyomo's `SolverFactory("scip")`), IPOPT, and Coin-HSL (compiled from source for IPOPT's linear solver). Gurobi and SCIP must be separately licensed/installed on the system; there is no pure-pip path to a working environment.
+Repo không có sẵn `requirements.txt`/`pyproject.toml`; các phụ thuộc được cài qua `create_env.sh`, script này giả định một cụm HPC dùng module (kiểu Compute Canada: `module load`, `virtualenv`). Các phụ thuộc chính: PyTorch, NeuroMANCER (`==1.5.2`, cài với `--no-deps`), Pyomo, Gurobi (`gurobipy`), SCIP (qua `SolverFactory("scip")` của Pyomo), IPOPT, và Coin-HSL (biên dịch từ mã nguồn cho bộ giải tuyến tính của IPOPT). Gurobi và SCIP phải được cấp phép/cài đặt riêng trên hệ thống; không có cách cài chỉ bằng pip để có môi trường chạy được.
 
-## Running experiments
+## Chạy thực nghiệm
 
-There is no test suite, build step, or linter configured in this repo. The three entry points below are the actual "run" commands:
+Repo không có test suite, bước build hay linter. Ba entry point dưới đây là các lệnh "run" thực sự:
 
 ```bash
 # Integer Quadratic Problems (IQP)
@@ -25,46 +25,80 @@ python run_nc.py --size 10 [--penalty 1] [--project]
 python run_rb.py --size 100 [--penalty 10] [--project]
 ```
 
-- `--size`: problem size, one of `{5, 10, 20, 50, 100, 200, 500, 1000}` (controls both `num_var`/`num_ineq` and the hidden layer width via a lookup table in each `run_*.py`).
-- `--penalty`: penalty weight for constraint-violation soft-penalty in the training loss (default 20/config-specific).
-- `--project`: enables the gradient-based feasibility projection post-processing step (`src/postprocess/project.py`).
-- `--warmstart` (IQP only): compares exact solves against ML-guided Gurobi warm starts (`run/quadratic.py::warmstart`), and requires ML solution CSVs already present in `result/`.
+- `--size`: kích thước bài toán, một trong `{5, 10, 20, 50, 100, 200, 500, 1000}` (điều khiển cả `num_var`/`num_ineq` và độ rộng lớp ẩn thông qua bảng tra trong mỗi `run_*.py`).
+- `--penalty`: trọng số của soft-penalty cho vi phạm ràng buộc trong hàm loss huấn luyện (mặc định 20 hoặc tùy cấu hình).
+- `--project`: bật bước hậu xử lý chiếu khả thi dựa trên gradient (`src/postprocess/project.py`).
+- `--warmstart` (chỉ IQP): so sánh nghiệm chính xác với warm start của Gurobi được dẫn bởi ML (`run/quadratic.py::warmstart`), và yêu cầu các file CSV nghiệm ML đã có sẵn trong `result/`.
 
-Each `run_*.py` script builds synthetic parametric data (uniform-random RHS `b`), splits it via `src.utlis.data_split`, and dispatches to a matching module in `run/` (`run/quadratic.py`, `run/nonconvex.py`, `run/rosenbrock.py`) which runs several baselines/methods in sequence and writes one CSV per method to `result/<problem>_<method><penalty>_<size>-<size>.csv` (directory `result/` is created implicitly and is not checked into git). All training is hardcoded to run on `cuda` (`.to("cuda")` throughout `run/*.py`) — there's no CPU fallback path.
+Mỗi script `run_*.py` tạo dữ liệu tham số tổng hợp (vế phải `b` lấy ngẫu nhiên đều), chia dữ liệu bằng `src.utlis.data_split`, rồi chuyển sang module tương ứng trong `run/` (`run/quadratic.py`, `run/nonconvex.py`, `run/rosenbrock.py`). Module này chạy lần lượt nhiều baseline/phương pháp và ghi mỗi phương pháp một file CSV vào `result/<problem>_<method><penalty>_<size>-<size>.csv` (thư mục `result/` được tạo ngầm và không được commit vào git). Toàn bộ quá trình huấn luyện được hardcode chạy trên `cuda` (`.to("cuda")` xuyên suốt `run/*.py`), không có đường chạy dự phòng trên CPU.
 
-Random seeds (`random`, `numpy`, `torch`, `torch.cuda`) are fixed to 42 at the top of every `run_*.py` and re-seeded inside each method function in `run/*.py` for reproducibility.
+Các random seed (`random`, `numpy`, `torch`, `torch.cuda`) được cố định bằng 42 ở đầu mỗi `run_*.py` và được đặt lại bên trong mỗi hàm phương pháp trong `run/*.py` để đảm bảo tái lập.
 
-The `test/` directory holds only Jupyter notebooks used for analysis/visualization of results (no automated `pytest`/`unittest` tests).
+Thư mục `test/` chỉ chứa các Jupyter notebook dùng để phân tích/trực quan hóa kết quả (không có test tự động `pytest`/`unittest`).
 
-## Architecture
+## Kiến trúc
 
-The framework treats a MINLP as two parallel representations of the same problem that must stay consistent:
+Framework xem một bài toán MINLP là hai biểu diễn song song của cùng một bài toán, và hai biểu diễn này phải nhất quán với nhau:
 
-1. **`src/problem/math_solver/`** — exact solver models (Pyomo + SCIP/Gurobi), one per problem type (`quadratic.py`, `nonconvex.py`, `rosenbrock.py`), all subclassing `abcParamSolver` (`abc_solver.py`). This ABC wraps a Pyomo model with mutable parameters (`self.params`), decision variables (`self.vars`), and constraints (`self.cons`), and provides the operations used throughout the pipeline: `solve()`, `set_param_val()`, `relax()` (LP/NLP relaxation via `TransformationFactory("core.relax_integer_vars")`), `penalty()` (converts hard constraints to a soft-penalty objective via slacks), `first_solution_heuristic()`/`primal_heuristic()` (SCIP heuristic-only solves used as fast baselines), `set_warm_start()`, and violation metrics (`cal_violation()`). `int_ind`/`bin_ind` properties expose which variable indices are integer/binary — this is threaded into the neural rounding layers so they know which outputs need integer correction.
+1. **`src/problem/math_solver/`** — các mô hình solver chính xác (Pyomo + SCIP/Gurobi), mỗi loại bài toán một file (`quadratic.py`, `nonconvex.py`, `rosenbrock.py`), tất cả kế thừa `abcParamSolver` (`abc_solver.py`). Lớp trừu tượng này bọc một mô hình Pyomo có các tham số có thể thay đổi (`self.params`), biến quyết định (`self.vars`) và ràng buộc (`self.cons`), đồng thời cung cấp các thao tác dùng xuyên suốt pipeline: `solve()`, `set_param_val()`, `relax()` (nới lỏng LP/NLP qua `TransformationFactory("core.relax_integer_vars")`), `penalty()` (chuyển ràng buộc cứng thành hàm mục tiêu soft-penalty thông qua biến slack), `first_solution_heuristic()`/`primal_heuristic()` (các lần giải chỉ dùng heuristic của SCIP, làm baseline nhanh), `set_warm_start()`, và các thước đo vi phạm (`cal_violation()`). Các property `int_ind`/`bin_ind` cho biết chỉ số biến nào là nguyên/nhị phân, thông tin này được truyền vào các lớp làm tròn của mạng nơ-ron để chúng biết đầu ra nào cần hiệu chỉnh số nguyên.
 
-2. **`src/problem/neuromancer/`** — the same problems expressed as differentiable NeuroMANCER loss functions (`quadratic.py`, `nonconvex.py`, `rosenbrock.py`, imported as `nmQuadratic`/`nmNonconvex`/`nmRosenbrock` in `src/problem/__init__.py`), used to train the neural solution-mapping network end-to-end.
+2. **`src/problem/neuromancer/`** — cùng các bài toán đó được biểu diễn dưới dạng hàm loss khả vi của NeuroMANCER (`quadratic.py`, `nonconvex.py`, `rosenbrock.py`, được import thành `nmQuadratic`/`nmNonconvex`/`nmRosenbrock` trong `src/problem/__init__.py`), dùng để huấn luyện end-to-end mạng nơ-ron ánh xạ nghiệm.
 
-Both are aggregated in `src/problem/__init__.py` with matching `ms*`/`nm*` naming — when adding a new problem class, both a math-solver and a neuromancer counterpart are expected.
+Cả hai được gom trong `src/problem/__init__.py` với quy ước đặt tên tương ứng `ms*`/`nm*`. Khi thêm một lớp bài toán mới, cần có cả bản math-solver và bản neuromancer.
 
-**Neural pipeline** (see `run/quadratic.py` for the canonical pattern, mirrored in `run/nonconvex.py`/`run/rosenbrock.py`):
-- A **solution-mapping network** (`nm.system.Node` wrapping an MLP) maps problem parameters (e.g. `b`) directly to a continuous relaxation `x`.
-- A **rounding/correction layer** (`src/func/rnd.py`, exposed via `src/func/__init__.py`) takes `x` and produces an integer-feasible `x_rnd`. Variants dispatched by method name in `run/*.py`:
+**Pipeline nơ-ron** (xem `run/quadratic.py` làm mẫu chuẩn, được lặp lại trong `run/nonconvex.py`/`run/rosenbrock.py`):
+- Một **mạng ánh xạ nghiệm** (`nm.system.Node` bọc một MLP) ánh xạ trực tiếp các tham số bài toán (ví dụ `b`) sang nghiệm nới lỏng liên tục `x`.
+- Một **lớp làm tròn/hiệu chỉnh** (`src/func/rnd.py`, được export qua `src/func/__init__.py`) nhận `x` và tạo ra `x_rnd` thỏa tính nguyên. Các biến thể được chọn theo tên phương pháp trong `run/*.py`:
   - `roundGumbelModel` → "RC" (Rounding Classification)
   - `roundThresholdModel` → "LT" (Learnable Thresholding)
-  - `roundSTEModel` → straight-through-estimator rounding ("RS")
-  - no rounding layer at all + `naive_round` heuristic (`src/heuristic/round.py`) → "RL" baseline
-  - `src/func/ste.py` implements the underlying straight-through-estimator ops these layers rely on for backprop through the (non-differentiable) rounding operation.
-- Both components are chained as `nn.ModuleList([smap, rnd])` and trained jointly via `src.problem.neuromancer.trainer.trainer` (wrapped by `run/utils.py::train`), against the matching `nm*` loss function (soft penalty on constraint violation, weighted by `--penalty`).
-- At eval time, `run/*.py::evaluate()` optionally wraps inference with `src.postprocess.project.gradientProjection` (the `--project` flag) — a gradient-based iterative correction of `x_rnd` against the differentiable constraints, before handing values back to the math-solver model (`model.vars[...].value = ...`) to compute exact objective/violation via `cal_violation()`.
+  - `roundSTEModel` → làm tròn dùng straight-through-estimator ("RS")
+  - không có lớp làm tròn + heuristic `naive_round` (`src/heuristic/round.py`) → baseline "RL"
+  - `src/func/ste.py` cài đặt các phép toán straight-through-estimator mà các lớp này dùng để lan truyền ngược qua phép làm tròn (không khả vi).
+- Hai thành phần được nối thành `nn.ModuleList([smap, rnd])` và huấn luyện đồng thời qua `src.problem.neuromancer.trainer.trainer` (được bọc bởi `run/utils.py::train`), theo hàm loss `nm*` tương ứng (soft penalty cho vi phạm ràng buộc, nhân với trọng số `--penalty`).
+- Ở giai đoạn đánh giá, `run/*.py::evaluate()` có thể bọc bước suy luận bằng `src.postprocess.project.gradientProjection` (cờ `--project`), tức là hiệu chỉnh lặp dựa trên gradient cho `x_rnd` theo các ràng buộc khả vi, trước khi trả giá trị về mô hình math-solver (`model.vars[...].value = ...`) để tính chính xác giá trị mục tiêu và vi phạm bằng `cal_violation()`.
 
-**Method-name conventions across `run/*.py`** (baselines vs. learned methods, mirrored for cq=quadratic, nc=nonconvex, rb=rosenbrock in result CSV prefixes):
-- `exact` — full SCIP/Gurobi solve (ground-truth baseline, slow).
-- `relRnd` — solve LP/NLP relaxation then naive rounding.
-- `root` — solver's first-feasible-solution heuristic (`first_solution_heuristic`).
-- `rndCls`/`rndThd`/`rndSte` — learned rounding layers (RC/LT/RS) + optional projection.
-- `lrnRnd` — learned solution map only, rounded naively post-hoc (no learned rounding layer).
-- `warmstart` (quadratic only) — feeds a previously-computed ML solution CSV into Gurobi as a MIP start and compares against a cold solve.
+**Quy ước tên phương pháp trong `run/*.py`** (baseline so với phương pháp học, tương ứng với tiền tố cq=quadratic, nc=nonconvex, rb=rosenbrock trong tên file CSV kết quả):
+- `exact` — giải đầy đủ bằng SCIP/Gurobi (baseline sự thật nền, chậm).
+- `relRnd` — giải bài toán nới lỏng LP/NLP rồi làm tròn đơn giản.
+- `root` — heuristic nghiệm khả thi đầu tiên của solver (`first_solution_heuristic`).
+- `rndCls`/`rndThd`/`rndSte` — các lớp làm tròn học được (RC/LT/RS) cộng với projection tùy chọn.
+- `lrnRnd` — chỉ dùng ánh xạ nghiệm học được, làm tròn đơn giản ở bước sau (không có lớp làm tròn học được).
+- `warmstart` (chỉ quadratic) — đưa file CSV nghiệm ML đã tính trước vào Gurobi làm MIP start và so sánh với lần giải khởi động nguội.
 
-`src/heuristic/resolve.py` holds heuristics for re-solving/repairing a problem instance (distinct from the naive rounding in `round.py`).
+`src/heuristic/resolve.py` chứa các heuristic để giải lại/sửa chữa một instance bài toán (khác với phép làm tròn đơn giản trong `round.py`).
 
-`src/utlis/data.py` provides `data_split` (train/val/test split + a `torch.utils.data.Dataset`/`collate_fn` for the parameter dict) and `solve_test.py` has helpers for evaluating solved instances — used across all three `run_*.py` scripts.
+`src/utlis/data.py` cung cấp `data_split` (chia train/val/test cùng `torch.utils.data.Dataset`/`collate_fn` cho dict tham số) và `solve_test.py` có các hàm hỗ trợ đánh giá các instance đã giải, được dùng trong cả ba script `run_*.py`.
+
+## Quy tắc quản lý kế hoạch
+
+1. Mọi file markdown liên quan đến kế hoạch triển khai và to-do list của project phải nằm trong thư mục lớn `Claude_plan/`.
+2. Luôn chia nhỏ công việc trong một kế hoạch thành các đầu việc nhỏ hơn dựa theo heading cấp 2 và cấp 3. Tạo to-do list các việc cần làm để đạt được mục tiêu và yêu cầu của kế hoạch.
+3. Nếu một công việc rất lớn được chia thành nhiều bước thực hiện, phải tạo các subfolder nằm trong folder tương ứng của công việc lớn đó và đặt tên theo thứ tự các bước từ `step_0` đến `step_final`. Nếu kết quả có hình vẽ và dữ liệu dạng csv, txt, log, ... thì phải tạo các subfolder tên là `data/` và `figures/` nằm trong từng subfolder step để lưu kết quả.
+
+4. Mỗi khi hoàn thành một công việc lớn, phải có một báo cáo ngắn gọn trình bày kết quả đạt được. Với kết quả chưa đạt được, nêu ngắn gọn nguyên nhân gốc, chỉ trong 2-3 dòng.
+5. Lưu báo cáo dưới dạng file markdown (ví dụ `report.md`) ngay tại nơi lưu công việc lớn đó, tức là trong folder `Claude_plan/<ten_cong_viec>/`.
+
+6. Trong mỗi subfolder step của công việc, phải tạo một file markdown plan thực hiện step đó (ví dụ `plan.md`).
+7. Mỗi file markdown plan trong subfolder step phải mô tả yêu cầu và mục tiêu cần đạt được trong step đó. Sau đó đưa ra các đầu việc dạng to-do list, mỗi to-do có mục tiêu cụ thể. Chỉ được tick hoàn thành một to-do khi đã đáp ứng yêu cầu và hoàn thành mục tiêu của to-do đó. Chỉ khi tick hết các to-do thì step đó mới được tính là hoàn thành.
+8. Không tự ý chuyển sang công việc hoặc step khác khi chưa hỏi người dùng hoặc người dùng chưa đưa ra yêu cầu thực hiện.
+
+Ví dụ cấu trúc:
+
+```
+Claude_plan/
+└── <ten_cong_viec>/
+    ├── plan.md
+    ├── report.md
+    ├── step_0/
+    │   ├── plan.md
+    │   ├── data/
+    │   └── figures/
+    ├── step_1/
+    │   ├── plan.md
+    │   ├── data/
+    │   └── figures/
+    └── step_final/
+        ├── plan.md
+        ├── data/
+        └── figures/
+```

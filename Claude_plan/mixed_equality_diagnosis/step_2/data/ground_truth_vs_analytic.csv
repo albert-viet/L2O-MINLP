@@ -1,0 +1,13 @@
+dataset,variant,region,n,solved,infeasible,timeout,other,pred_feasible,solved&pred_feasible,solved&~pred_feasible,infeasible&pred_feasible
+mixed,V1,p<p*,516,499,0,17,0,516,499,0,0
+mixed,V1,p>=p*,484,482,0,2,0,484,482,0,0
+mixed,V2,p<p*,516,478,0,38,0,516,478,0,0
+mixed,V2,p>=p*,484,0,484,0,0,0,0,0,0
+mixed,V3,p<p*,516,516,0,0,0,516,516,0,0
+mixed,V3,p>=p*,484,0,484,0,0,0,0,0,0
+mixed,V4,p<p*,516,397,87,29,3,429,397,0,0
+mixed,V4,p>=p*,484,0,484,0,0,0,0,0,0
+feasible_only,V1,p<p*,1000,973,0,27,0,1000,973,0,0
+feasible_only,V2,p<p*,1000,943,0,54,3,1000,943,0,0
+feasible_only,V3,p<p*,1000,1000,0,0,0,1000,1000,0,0
+feasible_only,V4,p<p*,1000,747,191,58,4,809,747,0,0

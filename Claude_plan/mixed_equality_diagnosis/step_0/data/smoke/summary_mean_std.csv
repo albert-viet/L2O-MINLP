@@ -1,0 +1,3 @@
+variant,stage,train_iters_mean,train_iters_std,train_time_mean,train_time_std,n_mean,n_std,obj_mean,obj_std,v_ineq_mean,v_ineq_std,inner_mean,inner_std,outer_mean,outer_std,linear_mean,linear_std,abs_h_mean,abs_h_std,feas_rate_mean,feas_rate_std,F_0.1_mean,F_0.1_std,F_0.01_mean,F_0.01_std,F_0.001_mean,F_0.001_std,F_0.0001_mean,F_0.0001_std,F_1e-05_mean,F_1e-05_std
+V4,noproj,320.0,,1.193920373916626,,200.0,,45.51746917781331,,6.905068899955549,,5.272064554095269,,0.0,,1.6330043458602814,,0.3964941918221635,,0.0,,0.0,,0.0,,0.0,,0.0,,0.0,
+V4,proj,320.0,,1.193920373916626,,200.0,,892.2123133132277,,4.727491166611455,,4.114078775942326,,0.0,,0.6134123906691297,,0.35637784044037174,,0.0,,0.005,,0.005,,0.0,,0.0,,0.0,

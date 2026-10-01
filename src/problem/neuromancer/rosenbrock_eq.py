@@ -13,14 +13,22 @@ class penaltyLoss_eq(penaltyLoss):
     """
     Penalty loss for the Rosenbrock problem with an additional equality
     constraint mixing continuous and integer variables.
+
+    eq_mode (must match math_solver/rosenbrock_eq.py):
+      "mixed" - sum_i x_2i = eq_coef * sum_i x_2i+1 (default)
+      "cont"  - sum_i x_2i = eq_coef * K * p / 2
+      "none"  - no equality, equality violation is identically 0
     """
     def __init__(self, input_keys, steepness, num_blocks, penalty_weight=50,
-                 penalty_weight_eq=None, eq_coef=1.0, output_key="loss"):
+                 penalty_weight_eq=None, eq_coef=1.0, output_key="loss", eq_mode="mixed"):
         super().__init__(input_keys, steepness, num_blocks, penalty_weight, output_key)
+        if eq_mode not in ("none", "cont", "mixed"):
+            raise ValueError(f"unknown eq_mode '{eq_mode}'")
         # separate penalty weight for the equality term (defaults to penalty_weight)
         self.penalty_weight_eq = penalty_weight_eq if penalty_weight_eq is not None else penalty_weight
         # coefficient c in: sum(x_2i) = eq_coef * sum(x_2i+1)
         self.eq_coef = eq_coef
+        self.eq_mode = eq_mode
 
     def forward(self, input_dict):
         """
@@ -35,12 +43,25 @@ class penaltyLoss_eq(penaltyLoss):
 
     def cal_eq_violation(self, input_dict):
         """
-        squared violation of sum_i x_2i = eq_coef * sum_i x_2i+1
+        squared violation of the equality constraint selected by eq_mode
         """
         x = input_dict[self.x_key]
+        return self.eq_residual(input_dict) ** 2 if self.eq_mode != "none" \
+            else torch.zeros(x.shape[0], device=x.device, dtype=x.dtype)
+
+    def eq_residual(self, input_dict):
+        """
+        signed equality residual h(x) = lhs - rhs (0 if eq_mode is "none")
+        """
+        x, p = input_dict[self.x_key], input_dict[self.p_key]
         lhs = torch.sum(x[:, ::2], dim=1)
-        rhs = self.eq_coef * torch.sum(x[:, 1::2], dim=1)
-        return (lhs - rhs) ** 2
+        if self.eq_mode == "mixed":
+            rhs = self.eq_coef * torch.sum(x[:, 1::2], dim=1)
+        elif self.eq_mode == "cont":
+            rhs = self.eq_coef * self.num_blocks * p[:, 0] / 2
+        else:
+            return torch.zeros_like(lhs)
+        return lhs - rhs
 
     def cal_constr_viol(self, input_dict):
         """

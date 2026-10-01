@@ -79,6 +79,8 @@ class trainer:
                         break
         tock = time.time()
         elapsed = tock - tick
+        # number of optimizer steps actually performed (early stopping may cut training short)
+        self.total_iters = iters
         print("Training complete.")
         print(f"The training time is {elapsed:.2f} sec.")
 

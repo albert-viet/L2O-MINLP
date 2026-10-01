@@ -8,7 +8,7 @@ from torch import nn
 import neuromancer as nm
 
 class gradientProjection(nn.Module):
-    def __init__(self, pre_components, post_components, loss_fn, target_key, max_iters=1000, step_size=0.01, decay=1.0, record_history=False, normalize_by_group=False):
+    def __init__(self, pre_components, post_components, loss_fn, target_key, max_iters=1000, step_size=0.01, decay=1.0, record_history=False, normalize_by_group=False, record_states=False):
         super().__init__()
         self.pre_components = pre_components
         self.post_components = post_components
@@ -24,6 +24,11 @@ class gradientProjection(nn.Module):
         # before summing - requires loss_fn.cal_violation_breakdown(...) (see
         # src/problem/neuromancer/rosenbrock_eq.py::penaltyLoss_eq)
         self.normalize_by_group = normalize_by_group
+        # if True, store the latent x and the rounded x (loss_fn.x_key) at every
+        # iteration (before the update) in self.latent_states / self.rounded_states
+        self.record_states = record_states
+        self.latent_states = []
+        self.rounded_states = []
 
     def forward(self, input_dict):
         # initialize decay multiplier
@@ -31,6 +36,8 @@ class gradientProjection(nn.Module):
         # reset history for this call
         if self.record_history:
             self.history = []
+        if self.record_states:
+            self.latent_states, self.rounded_states = [], []
         # get target variables
         for comp in self.pre_components:
             input_dict.update(comp(input_dict))
@@ -48,6 +55,7 @@ class gradientProjection(nn.Module):
                 viol = viol_ineq + viol_eq
                 if self.record_history:
                     self.history.append(viol.max().item())
+                self._record_states(input_dict, x)
                 if viol.max() < 1e-6:
                     break
                 # gradient per group, each normalized to unit norm
@@ -62,6 +70,7 @@ class gradientProjection(nn.Module):
                 # record convergence history if requested
                 if self.record_history:
                     self.history.append(viol.max().item())
+                self._record_states(input_dict, x)
                 # check stopping condition
                 if viol.max() < 1e-6:
                     break
@@ -73,6 +82,11 @@ class gradientProjection(nn.Module):
             # get data
             input_dict[self.target_key] = x
         return input_dict
+
+    def _record_states(self, input_dict, x):
+        if self.record_states:
+            self.latent_states.append(x.detach().clone())
+            self.rounded_states.append(input_dict[self.loss_fn.x_key].detach().clone())
 
 
 if __name__ == "__main__":
